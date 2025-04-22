@@ -25,21 +25,26 @@ trg_language = "zh"  # Default target language
 model = None
 tokenizer = None
 
+import subprocess
+
 def convert_audio(input_path, output_path):
     try:
-        # Check the format of the input file using pydub's audio file detection
-        audio = AudioSegment.from_file(input_path)  # Attempt to load the file in its current format
-        print(f"✅ Successfully loaded the audio file: Format - {audio.format}, Channels - {audio.channels}, Sample Rate - {audio.frame_rate} Hz")
-
-        # Ensure the audio is mono and 16kHz sample rate (standard for speech-to-text)
-        audio = audio.set_channels(1).set_frame_rate(16000)
-
-        # Export the file to WAV format
-        audio.export(output_path, format="wav")
+        # Attempt to use FFmpeg to convert to PCM WAV if it's not in the correct format
+        command = [
+            "ffmpeg", 
+            "-i", input_path,        # Input file path
+            "-ac", "1",              # Mono channels
+            "-ar", "16000",          # 16 kHz sample rate
+            "-f", "wav",             # Output format as WAV
+            output_path              # Output file path
+        ]
+        # Run the FFmpeg command to convert the audio
+        subprocess.run(command, check=True)
         print(f"✅ Audio file converted successfully: {output_path}")
-    except Exception as e:
-        print(f"❌ Error converting audio: {str(e)}")
-        raise Exception("Failed to convert audio file. Ensure it's in a supported format.")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ FFmpeg error during conversion: {str(e)}")
+        raise Exception("Audio file conversion failed. Ensure the file is in a supported format.")
+
 
 
 
@@ -78,7 +83,7 @@ def translate_to_target_language(text):
         print(f"❌ Error in translate_to_target_language: {str(e)}")
         raise ValueError("Translation failed.") from e
 
-@app.route("/record", methods=["POST"])
+
 @app.route("/record", methods=["POST"])
 def record_audio():
     global speech_text
@@ -96,7 +101,7 @@ def record_audio():
             audio_file.save(temp_path)
         print(f"📂 Audio saved to temp path: {temp_path}")
 
-        # Log the file's properties to understand its format
+        # Log the file properties to understand its format
         audio = AudioSegment.from_file(temp_path)
         print(f"✅ Audio file properties: Format - {audio.format}, Channels - {audio.channels}, Sample Rate - {audio.frame_rate} Hz")
 
@@ -127,6 +132,7 @@ def record_audio():
     except Exception as e:
         print(f"🔥 Internal Server Error: {str(e)}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
 
 
 
