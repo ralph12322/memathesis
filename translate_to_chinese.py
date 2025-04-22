@@ -7,6 +7,7 @@ from transformers import AutoTokenizer, MarianMTModel
 from gtts import gTTS
 import tempfile
 from flask_cors import CORS
+from pydub import AudioSegment
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -23,6 +24,11 @@ src_language = "en"  # Default source language
 trg_language = "zh"  # Default target language
 model = None
 tokenizer = None
+
+def convert_audio(input_path, output_path):
+    audio = AudioSegment.from_wav(input_path)
+    audio = audio.set_channels(1).set_frame_rate(16000)  # Mono and 16kHz sample rate
+    audio.export(output_path, format="wav")
 
 @app.route("/set_language", methods=["POST"])
 def set_language():
