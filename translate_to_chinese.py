@@ -70,13 +70,18 @@ def record_audio():
             audio = recognizer.record(source)
             speech_text = recognizer.recognize_google(audio, language=src_language)
 
-        return jsonify({"message": "Recording successful", "speech_text": speech_text})
+        if speech_text:
+            return jsonify({"message": "Recording successful", "speech_text": speech_text})
+        else:
+            return jsonify({"error": "Speech recognition failed"}), 400
+
     except sr.UnknownValueError:
         return jsonify({"error": "Could not understand audio"}), 400
     except sr.RequestError as e:
         return jsonify({"error": f"Speech recognition error: {e}"}), 500
     finally:
         os.remove(temp_audio_path)
+
 
 
 
