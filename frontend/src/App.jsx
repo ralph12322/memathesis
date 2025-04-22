@@ -8,33 +8,44 @@ const App = () => {
   const [sourceLanguage, setSourceLanguage] = useState('zh');
   const [targetLanguage, setTargetLanguage] = useState('en');
 
-  const handleRecord = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mediaRecorder = new MediaRecorder(stream);
-    const chunks = [];
-  
-    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(audioChunks, { type: 'audio/wav' });
-      const formData = new FormData();
-      formData.append('audio', blob, 'recording.wav');
-    
-      try {
-        const res = await fetch(`${API_BASE}/record`, {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await res.json();
-        console.log("Transcription:", data);
-      } catch (err) {
-        console.error("Error recording:", err);
-      }
-    };
-    
-  
-    mediaRecorder.start();
-    setTimeout(() => mediaRecorder.stop(), 5000); // Record 5 seconds
+  let mediaRecorder;
+let audioChunks = [];
+
+const handleRecord = async () => {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream);
+
+  audioChunks = [];
+
+  mediaRecorder.ondataavailable = event => {
+    audioChunks.push(event.data);
   };
+
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(audioChunks, { type: 'audio/wav' });
+    const formData = new FormData();
+    formData.append('audio', blob, 'recording.wav');
+
+    try {
+      const response = await fetch('https://memathesis.onrender.com/record', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('Transcription:', data);
+    } catch (error) {
+      console.error('Error recording:', error);
+    }
+  };
+
+  mediaRecorder.start();
+
+  setTimeout(() => {
+    mediaRecorder.stop();
+  }, 4000); // record for 4 seconds
+};
+
   
   
 
