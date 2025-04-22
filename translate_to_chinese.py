@@ -53,27 +53,32 @@ def translate_to_target_language(text):
 def record_audio():
     global speech_text
 
-    if "audio" not in request.files:
+    if 'audio' not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
 
-    audio_file = request.files["audio"]
-
-    # Save the file temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-        audio_file.save(temp_audio.name)
-        temp_path = temp_audio.name
-
-    # Load the audio for speech recognition
-    with sr.AudioFile(temp_path) as source:
-        audio = recognizer.record(source)
+    audio_file = request.files['audio']
 
     try:
-        speech_text = recognizer.recognize_google(audio, language=src_language)
+        # Save audio to temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
+            audio_file.save(temp.name)
+            temp_path = temp.name
+
+        with sr.AudioFile(temp_path) as source:
+            audio_data = recognizer.record(source)
+            speech_text = recognizer.recognize_google(audio_data, language=src_language)
+
+        os.remove(temp_path)  # Clean up
+
         return jsonify({"message": "Recording successful", "speech_text": speech_text})
+
     except sr.UnknownValueError:
         return jsonify({"error": "Could not understand audio"}), 400
     except sr.RequestError as e:
         return jsonify({"error": f"Speech recognition error: {e}"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 
