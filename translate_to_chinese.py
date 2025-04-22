@@ -26,9 +26,15 @@ model = None
 tokenizer = None
 
 def convert_audio(input_path, output_path):
-    audio = AudioSegment.from_wav(input_path)
-    audio = audio.set_channels(1).set_frame_rate(16000)  # Mono and 16kHz sample rate
-    audio.export(output_path, format="wav")
+    try:
+        # Use pydub to open and convert the audio file
+        audio = AudioSegment.from_file(input_path)
+        audio = audio.set_channels(1).set_frame_rate(16000)  # Mono and 16kHz sample rate
+        audio.export(output_path, format="wav")
+        print(f"✅ Audio file converted successfully: {output_path}")
+    except Exception as e:
+        print(f"❌ Error converting audio: {str(e)}")
+        raise
 
 @app.route("/set_language", methods=["POST"])
 def set_language():
@@ -81,8 +87,12 @@ def record_audio():
             audio_file.save(temp_path)
         print(f"📂 Audio saved to temp path: {temp_path}")
 
-        # Try reading the file with SpeechRecognition
-        with sr.AudioFile(temp_path) as source:
+        # Convert the audio to ensure it's in the right format
+        converted_audio_path = "/tmp/converted_audio.wav"
+        convert_audio(temp_path, converted_audio_path)
+
+        # Use the converted file for further processing
+        with sr.AudioFile(converted_audio_path) as source:
             recognizer.adjust_for_ambient_noise(source)
             audio_data = recognizer.record(source)
             print("🧠 Attempting transcription...")
@@ -102,11 +112,6 @@ def record_audio():
     except Exception as e:
         print(f"🔥 Internal Server Error: {str(e)}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
-
-
-
-
-
 
 @app.route("/translate", methods=["GET"])
 def translate():
