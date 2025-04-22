@@ -28,13 +28,14 @@ tokenizer = None
 def convert_audio(input_path, output_path):
     try:
         # Use pydub to open and convert the audio file
-        audio = AudioSegment.from_file(input_path)
-        audio = audio.set_channels(1).set_frame_rate(16000)  # Mono and 16kHz sample rate
-        audio.export(output_path, format="wav")
+        audio = AudioSegment.from_file(input_path)  # Automatically detect the format
+        audio = audio.set_channels(1).set_frame_rate(16000)  # Convert to mono and 16kHz sample rate
+        audio.export(output_path, format="wav")  # Export as WAV format
         print(f"✅ Audio file converted successfully: {output_path}")
     except Exception as e:
         print(f"❌ Error converting audio: {str(e)}")
-        raise
+        raise Exception("Failed to convert audio file. Ensure it's in a supported format.")
+
 
 @app.route("/set_language", methods=["POST"])
 def set_language():
