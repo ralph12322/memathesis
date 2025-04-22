@@ -101,6 +101,7 @@ def record_audio():
 
 
 
+
 @app.route("/translate", methods=["GET"])
 def translate():
     global speech_text
