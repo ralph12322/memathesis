@@ -9,7 +9,7 @@ import tempfile
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Directory to store the audio files
 AUDIO_STORAGE_DIR = "audio_storage"
