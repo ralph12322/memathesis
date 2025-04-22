@@ -2,16 +2,16 @@ from flask import Flask, request, jsonify
 import sounddevice as sd
 import soundfile as sf
 import tempfile
-import whisper
+import os
+from faster_whisper import WhisperModel
 from transformers import AutoTokenizer, MarianMTModel
 from gtts import gTTS
-import os
 
 # Initialize Flask app
 app = Flask(__name__)
 
-# Load Whisper model for speech recognition (use base or small to keep it fast)
-whisper_model = whisper.load_model("base")
+# Load Whisper model (use 'base' or 'small' for speed)
+whisper_model = WhisperModel("base", compute_type="int8")
 
 # Load MarianMT model for translation
 src = "zh"  # Chinese
@@ -32,21 +32,20 @@ def translate_to_english(text):
 def record_audio():
     global recorded_audio_path
 
-    if request.json and "action" in request.json and request.json["action"] == "start":
+    if request.json and request.json.get("action") == "start":
         duration = 5  # seconds
         fs = 16000  # sampling frequency
 
         print("Recording for 5 seconds...")
         audio = sd.rec(int(duration * fs), samplerate=fs, channels=1)
-        sd.wait()  # Wait until recording is finished
+        sd.wait()
 
-        # Save to a temp WAV file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             sf.write(temp_audio.name, audio, fs)
             recorded_audio_path = temp_audio.name
 
         return jsonify({"message": "Recording complete."})
-    
+
     return jsonify({"error": "Invalid request."}), 400
 
 @app.route("/translate", methods=["GET"])
@@ -55,16 +54,14 @@ def translate():
 
     if recorded_audio_path and os.path.exists(recorded_audio_path):
         print(f"Transcribing: {recorded_audio_path}")
-        result = whisper_model.transcribe(recorded_audio_path, language="zh")
-        transcript = result["text"]
+        segments, _ = whisper_model.transcribe(recorded_audio_path, language="zh")
 
+        transcript = " ".join([segment.text for segment in segments])
         print("Recognized Chinese:", transcript)
 
-        # Translate to English
         translated_text = translate_to_english(transcript)
         print("Translated to English:", translated_text)
 
-        # Convert translation to speech
         tts = gTTS(text=translated_text, lang="en")
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_tts:
             tts.save(temp_tts.name)
