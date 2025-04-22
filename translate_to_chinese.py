@@ -5,7 +5,6 @@ from transformers import AutoTokenizer, MarianMTModel
 from gtts import gTTS
 import tempfile
 from flask_cors import CORS
-import os
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -27,8 +26,8 @@ tokenizer = None
 def set_language():
     global src_language, trg_language, model, tokenizer
     data = request.json
-    src_language = data.get("source")
-    trg_language = data.get("target")
+    src_language = data.get("source", "en")
+    trg_language = data.get("target", "zh")
 
     # Load the translation model based on selected languages
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{trg_language}"
@@ -37,7 +36,6 @@ def set_language():
     
     return jsonify({"message": "Languages set successfully!"})
 
-# Store speech transcription
 speech_text = None
 
 def translate_to_target_language(text):
@@ -82,9 +80,6 @@ def record_audio():
     finally:
         os.remove(temp_audio_path)
 
-
-
-
 @app.route("/translate", methods=["GET"])
 def translate():
     global speech_text
@@ -115,10 +110,8 @@ def translate():
 # Route to serve the audio files
 @app.route('/static/<filename>')
 def serve_audio(filename):
-    # Return the file from the AUDIO_STORAGE_DIR directory
     return send_from_directory(AUDIO_STORAGE_DIR, filename)
 
 if __name__ == "__main__":
-    # Get the port from the environment variable or default to 5000
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
