@@ -90,48 +90,55 @@ def record_audio():
 
     try:
         if 'audio' not in request.files:
-            print("⚠️ No audio part in request.files")
             return jsonify({"error": "No audio file provided"}), 400
 
         audio_file = request.files['audio']
         print(f"📦 Received file: {audio_file.filename}, Content-Type: {audio_file.content_type}")
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
-            temp_path = temp.name
-            audio_file.save(temp_path)
-        print(f"📂 Audio saved to temp path: {temp_path}")
+        # Save with original MIME type extension if needed
+        suffix = mimetypes.guess_extension(audio_file.content_type) or ".webm"
 
-        # Log the file properties to understand its format
-        audio = AudioSegment.from_file(temp_path)
-        print(f"✅ Audio file properties: Format - {audio.format}, Channels - {audio.channels}, Sample Rate - {audio.frame_rate} Hz")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+            input_path = temp.name
+            audio_file.save(input_path)
+        print(f"📂 Audio saved to temp path: {input_path}")
 
-        # Try converting the audio file to a consistent format
-        output_path = temp_path + "_converted.wav"
-        convert_audio(temp_path, output_path)
+        # Convert input to standard WAV
+        output_path = input_path + "_converted.wav"
+        command = [
+            "ffmpeg",
+            "-y",                # Overwrite output
+            "-i", input_path,    # Input path
+            "-ac", "1",          # Mono
+            "-ar", "16000",      # 16 kHz
+            output_path
+        ]
+        subprocess.run(command, check=True)
+        print(f"🎧 Audio converted to WAV: {output_path}")
 
-        # Try reading the file with SpeechRecognition
+        # Load with speech recognition
         with sr.AudioFile(output_path) as source:
             recognizer.adjust_for_ambient_noise(source)
             audio_data = recognizer.record(source)
-            print("🧠 Attempting transcription...")
             speech_text = recognizer.recognize_google(audio_data, language=src_language)
-
-        os.remove(temp_path)  # Remove the original temporary file
-        os.remove(output_path)  # Remove the converted file
-
-        print(f"✅ Transcription succeeded: {speech_text}")
+        
+        # Cleanup
+        os.remove(input_path)
+        os.remove(output_path)
 
         return jsonify({"message": "Recording successful", "speech_text": speech_text})
 
     except sr.UnknownValueError:
-        print("❌ Speech recognition could not understand audio")
         return jsonify({"error": "Could not understand audio"}), 400
     except sr.RequestError as e:
-        print(f"❌ Could not request results from Google API: {e}")
         return jsonify({"error": f"Speech API error: {str(e)}"}), 500
+    except subprocess.CalledProcessError as e:
+        print(f"❌ FFmpeg error: {e}")
+        return jsonify({"error": "Audio conversion failed. Make sure the uploaded file is a valid recording."}), 500
     except Exception as e:
-        print(f"🔥 Internal Server Error: {str(e)}")
+        print(f"🔥 Internal Server Error: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
 
 
 
