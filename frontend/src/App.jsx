@@ -15,18 +15,22 @@ const App = () => {
   
     mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
     mediaRecorder.onstop = async () => {
-      const blob = new Blob(chunks, { type: 'audio/wav' });
+      const blob = new Blob(audioChunks, { type: 'audio/wav' });
       const formData = new FormData();
-      formData.append('file', blob, 'recording.wav');
-  
-      const response = await fetch("https://memathesis.onrender.com/record", {
-        method: "POST",
-        body: formData,
-      });
-  
-      const data = await response.json();
-      console.log(data);
+      formData.append('audio', blob, 'recording.wav');
+    
+      try {
+        const res = await fetch(`${API_BASE}/record`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        console.log("Transcription:", data);
+      } catch (err) {
+        console.error("Error recording:", err);
+      }
     };
+    
   
     mediaRecorder.start();
     setTimeout(() => mediaRecorder.stop(), 5000); // Record 5 seconds
