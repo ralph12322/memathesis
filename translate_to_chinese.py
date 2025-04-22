@@ -26,19 +26,17 @@ tokenizer = None
 def set_language():
     global src_language, trg_language, model, tokenizer
     data = request.json
-    src_language = data.get("source", "en")
-    trg_language = data.get("target", "zh")
+    src_language = data.get("source")
+    trg_language = data.get("target")
 
     # Load the translation model based on selected languages
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{trg_language}"
-    try:
-        model = MarianMTModel.from_pretrained(model_name)
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-    except Exception as e:
-        return jsonify({"error": f"Error loading translation model: {str(e)}"}), 500
-    
+    model = MarianMTModel.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
     return jsonify({"message": "Languages set successfully!"})
 
+# Store speech transcription
 speech_text = None
 
 def translate_to_target_language(text):
@@ -54,36 +52,22 @@ def translate_to_target_language(text):
 def record_audio():
     global speech_text
 
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-
-    # Save to a temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-        file.save(temp_audio.name)
-        temp_audio_path = temp_audio.name
-
     try:
-        with sr.AudioFile(temp_audio_path) as source:
-            audio = recognizer.record(source)
-            speech_text = recognizer.recognize_google(audio, language=src_language)
+        print("Recording... Please speak now.")
+        with sr.Microphone() as source:
+            recognizer.adjust_for_ambient_noise(source)
+            audio = recognizer.listen(source)
 
-        if speech_text:
-            return jsonify({"message": "Recording successful", "speech_text": speech_text})
-        else:
-            return jsonify({"error": "Speech recognition failed"}), 400
+        # Convert speech to text
+        speech_text = recognizer.recognize_google(audio, language=src_language)
+        print(f"You said ({src_language}):", speech_text)
+
+        return jsonify({"message": "Recording successful", "speech_text": speech_text})
 
     except sr.UnknownValueError:
         return jsonify({"error": "Could not understand audio"}), 400
     except sr.RequestError as e:
         return jsonify({"error": f"Speech recognition error: {e}"}), 500
-    except Exception as e:
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
-    finally:
-        os.remove(temp_audio_path)
 
 @app.route("/translate", methods=["GET"])
 def translate():
@@ -92,11 +76,7 @@ def translate():
     if not speech_text:
         return jsonify({"error": "No recorded speech found. Please record first."}), 400
 
-    try:
-        translated = translate_to_target_language(speech_text)
-    except Exception as e:
-        return jsonify({"error": f"Error during translation: {str(e)}"}), 500
-
+    translated = translate_to_target_language(speech_text)
     print("Translated to target language:", translated)
 
     # Convert the translated text to speech using gTTS
@@ -119,8 +99,8 @@ def translate():
 # Route to serve the audio files
 @app.route('/static/<filename>')
 def serve_audio(filename):
+    # Return the file from the AUDIO_STORAGE_DIR directory
     return send_from_directory(AUDIO_STORAGE_DIR, filename)
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(debug=True)
