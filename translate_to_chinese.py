@@ -29,17 +29,18 @@ def convert_audio(input_path, output_path):
     try:
         # Check the format of the input file using pydub's audio file detection
         audio = AudioSegment.from_file(input_path)  # Attempt to load the file in its current format
-        print(f"✅ Successfully loaded the audio file with {audio.frame_rate} Hz and {audio.channels} channels.")
+        print(f"✅ Successfully loaded the audio file: Format - {audio.format}, Channels - {audio.channels}, Sample Rate - {audio.frame_rate} Hz")
 
-        # Ensure the audio is mono and 16kHz sample rate (common format for speech-to-text)
+        # Ensure the audio is mono and 16kHz sample rate (standard for speech-to-text)
         audio = audio.set_channels(1).set_frame_rate(16000)
-        
+
         # Export the file to WAV format
         audio.export(output_path, format="wav")
         print(f"✅ Audio file converted successfully: {output_path}")
     except Exception as e:
         print(f"❌ Error converting audio: {str(e)}")
         raise Exception("Failed to convert audio file. Ensure it's in a supported format.")
+
 
 
 
@@ -78,6 +79,7 @@ def translate_to_target_language(text):
         raise ValueError("Translation failed.") from e
 
 @app.route("/record", methods=["POST"])
+@app.route("/record", methods=["POST"])
 def record_audio():
     global speech_text
 
@@ -94,9 +96,9 @@ def record_audio():
             audio_file.save(temp_path)
         print(f"📂 Audio saved to temp path: {temp_path}")
 
-        # Validate audio file type
-        if not audio_file.content_type.startswith("audio/"):
-            return jsonify({"error": "Invalid audio file format."}), 400
+        # Log the file's properties to understand its format
+        audio = AudioSegment.from_file(temp_path)
+        print(f"✅ Audio file properties: Format - {audio.format}, Channels - {audio.channels}, Sample Rate - {audio.frame_rate} Hz")
 
         # Try converting the audio file to a consistent format
         output_path = temp_path + "_converted.wav"
@@ -125,6 +127,7 @@ def record_audio():
     except Exception as e:
         print(f"🔥 Internal Server Error: {str(e)}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
 
 
 @app.route("/translate", methods=["GET"])
