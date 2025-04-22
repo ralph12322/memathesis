@@ -5,6 +5,7 @@ from transformers import AutoTokenizer, MarianMTModel
 from gtts import gTTS
 import tempfile
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -103,4 +104,6 @@ def serve_audio(filename):
     return send_from_directory(AUDIO_STORAGE_DIR, filename)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Get the port from the environment variable or default to 5000
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
