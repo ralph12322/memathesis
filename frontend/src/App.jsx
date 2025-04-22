@@ -19,7 +19,7 @@ const App = () => {
       const formData = new FormData();
       formData.append('file', blob, 'recording.wav');
   
-      const response = await fetch("https://your-render-url/record", {
+      const response = await fetch("https://memathesis.onrender.com/record", {
         method: "POST",
         body: formData,
       });
