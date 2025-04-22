@@ -1,3 +1,5 @@
+print("🚀 translate_to_chinese.py is running!")
+
 from flask import Flask, request, jsonify, send_from_directory
 import speech_recognition as sr
 import os
