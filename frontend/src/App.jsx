@@ -9,29 +9,35 @@ const App = () => {
   const [targetLanguage, setTargetLanguage] = useState('en');
 
   const handleRecord = async () => {
-    setIsRecording(true);
-    try {
-      const response = await fetch('http://localhost:5000/record', {
-        method: 'POST',
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream);
+    const chunks = [];
+  
+    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: 'audio/wav' });
+      const formData = new FormData();
+      formData.append('file', blob, 'recording.wav');
+  
+      const response = await fetch("https://your-render-url/record", {
+        method: "POST",
+        body: formData,
       });
-
+  
       const data = await response.json();
-      if (data.speech_text) {
-        setChineseText(data.speech_text);
-      } else {
-        console.error('Error:', data.error);
-      }
-    } catch (error) {
-      console.error('Error recording:', error);
-    } finally {
-      setIsRecording(false);
-    }
+      console.log(data);
+    };
+  
+    mediaRecorder.start();
+    setTimeout(() => mediaRecorder.stop(), 5000); // Record 5 seconds
   };
+  
+  
 
   const handleTranslate = async () => {
     try {
       // Set the languages before translation
-      await fetch('http://localhost:5000/set_language', {
+      await fetch('https://memathesis.onrender.com/set_language', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -39,7 +45,7 @@ const App = () => {
         body: JSON.stringify({ source: sourceLanguage, target: targetLanguage }),
       });
 
-      const response = await fetch('http://localhost:5000/translate', {
+      const response = await fetch('https://memathesis.onrender.com/translate', {
         method: 'GET',
       });
 
@@ -112,7 +118,7 @@ const App = () => {
           <div>
             <p><strong>Translated Speech:</strong></p>
             <audio controls>
-              <source src={`http://localhost:5000${audioUrl}`} type="audio/mp3" />
+              <source src={`https://memathesis.onrender.com${audioUrl}`} type="audio/mp3" />
               Your browser does not support the audio element.
             </audio>
           </div>

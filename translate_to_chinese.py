@@ -53,22 +53,32 @@ def translate_to_target_language(text):
 def record_audio():
     global speech_text
 
-    try:
-        print("Recording... Please speak now.")
-        with sr.Microphone() as source:
-            recognizer.adjust_for_ambient_noise(source)
-            audio = recognizer.listen(source)
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
 
-        # Convert speech to text
-        speech_text = recognizer.recognize_google(audio, language=src_language)
-        print(f"You said ({src_language}):", speech_text)
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    # Save to a temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+        file.save(temp_audio.name)
+        temp_audio_path = temp_audio.name
+
+    try:
+        with sr.AudioFile(temp_audio_path) as source:
+            audio = recognizer.record(source)
+            speech_text = recognizer.recognize_google(audio, language=src_language)
 
         return jsonify({"message": "Recording successful", "speech_text": speech_text})
-
     except sr.UnknownValueError:
         return jsonify({"error": "Could not understand audio"}), 400
     except sr.RequestError as e:
         return jsonify({"error": f"Speech recognition error: {e}"}), 500
+    finally:
+        os.remove(temp_audio_path)
+
+
 
 @app.route("/translate", methods=["GET"])
 def translate():
