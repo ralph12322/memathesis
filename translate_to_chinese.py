@@ -7,7 +7,6 @@ from transformers import AutoTokenizer, MarianMTModel
 from gtts import gTTS
 import tempfile
 from flask_cors import CORS
-from pydub import AudioSegment
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
