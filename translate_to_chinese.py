@@ -1,79 +1,72 @@
 from flask import Flask, request, jsonify
-import sounddevice as sd
-import soundfile as sf
-import tempfile
+import speech_recognition as sr
 import os
-from faster_whisper import WhisperModel
 from transformers import AutoTokenizer, MarianMTModel
 from gtts import gTTS
+import tempfile
 
-# Initialize Flask app
 app = Flask(__name__)
 
-# Load Whisper model (use 'base' or 'small' for speed)
-whisper_model = WhisperModel("base", compute_type="int8")
+# Initialize speech recognizer
+recognizer = sr.Recognizer()
 
-# Load MarianMT model for translation
-src = "zh"  # Chinese
-trg = "en"  # English
+# Load the translation model
+src = "en"  # Chinese
+trg = "zh"  # English
 model_name = f"Helsinki-NLP/opus-mt-{src}-{trg}"
-translator = MarianMTModel.from_pretrained(model_name)
+model = MarianMTModel.from_pretrained(model_name)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-# Store path to the last recorded audio
-recorded_audio_path = None
+# Store speech transcription
+speech_text = None
 
 def translate_to_english(text):
     batch = tokenizer([text], return_tensors="pt")
-    generated_ids = translator.generate(**batch)
+    generated_ids = model.generate(**batch)
     return tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-@app.route("/record_audio", methods=["POST"])
+@app.route("/record", methods=["POST"])
 def record_audio():
-    global recorded_audio_path
+    global speech_text
 
-    if request.json and request.json.get("action") == "start":
-        duration = 5  # seconds
-        fs = 16000  # sampling frequency
+    try:
+        print("Recording... Please speak now.")
+        with sr.Microphone() as source:
+            recognizer.adjust_for_ambient_noise(source)
+            audio = recognizer.listen(source)
 
-        print("Recording for 5 seconds...")
-        audio = sd.rec(int(duration * fs), samplerate=fs, channels=1)
-        sd.wait()
+        # Convert speech to text
+        speech_text = recognizer.recognize_google(audio, language="zh-CN")
+        print("You said (in Chinese):", speech_text)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-            sf.write(temp_audio.name, audio, fs)
-            recorded_audio_path = temp_audio.name
+        return jsonify({"message": "Recording successful", "chinese": speech_text})
 
-        return jsonify({"message": "Recording complete."})
-
-    return jsonify({"error": "Invalid request."}), 400
+    except sr.UnknownValueError:
+        return jsonify({"error": "Could not understand audio"}), 400
+    except sr.RequestError as e:
+        return jsonify({"error": f"Speech recognition error: {e}"}), 500
 
 @app.route("/translate", methods=["GET"])
 def translate():
-    global recorded_audio_path
+    global speech_text
 
-    if recorded_audio_path and os.path.exists(recorded_audio_path):
-        print(f"Transcribing: {recorded_audio_path}")
-        segments, _ = whisper_model.transcribe(recorded_audio_path, language="zh")
+    if not speech_text:
+        return jsonify({"error": "No recorded speech found. Please record first."}), 400
 
-        transcript = " ".join([segment.text for segment in segments])
-        print("Recognized Chinese:", transcript)
+    translated = translate_to_english(speech_text)
+    print("Translated to English:", translated)
 
-        translated_text = translate_to_english(transcript)
-        print("Translated to English:", translated_text)
+    # Convert to speech using gTTS
+    tts = gTTS(text=translated, lang='en')
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
+        tts.save(temp_audio.name)
+        audio_path = temp_audio.name
 
-        tts = gTTS(text=translated_text, lang="en")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_tts:
-            tts.save(temp_tts.name)
-            audio_path = temp_tts.name
-
-        return jsonify({
-            "original_chinese": transcript,
-            "translated_text": translated_text,
-            "audio_file": audio_path
-        })
-
-    return jsonify({"error": "No audio recorded."}), 400
+    return jsonify({
+        "original_chinese": speech_text,
+        "translated_text": translated,
+        "audio_file": audio_path
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)
