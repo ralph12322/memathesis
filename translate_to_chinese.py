@@ -31,8 +31,11 @@ def set_language():
 
     # Load the translation model based on selected languages
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{trg_language}"
-    model = MarianMTModel.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    try:
+        model = MarianMTModel.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+    except Exception as e:
+        return jsonify({"error": f"Error loading translation model: {str(e)}"}), 500
     
     return jsonify({"message": "Languages set successfully!"})
 
@@ -77,6 +80,8 @@ def record_audio():
         return jsonify({"error": "Could not understand audio"}), 400
     except sr.RequestError as e:
         return jsonify({"error": f"Speech recognition error: {e}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
     finally:
         os.remove(temp_audio_path)
 
@@ -87,7 +92,11 @@ def translate():
     if not speech_text:
         return jsonify({"error": "No recorded speech found. Please record first."}), 400
 
-    translated = translate_to_target_language(speech_text)
+    try:
+        translated = translate_to_target_language(speech_text)
+    except Exception as e:
+        return jsonify({"error": f"Error during translation: {str(e)}"}), 500
+
     print("Translated to target language:", translated)
 
     # Convert the translated text to speech using gTTS
