@@ -1,7 +1,7 @@
 services:
   - type: web
-    name: memathesisbackend
-    env: docker
-    region: oregon
-    branch: main
-    dockerfilePath: ./Dockerfile
+    name: speech-translator
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    plan: free

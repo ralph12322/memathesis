@@ -1,26 +1,49 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import speech_recognition as sr
 import os
 from transformers import AutoTokenizer, MarianMTModel
 from gtts import gTTS
 import tempfile
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# Directory to store the audio files
+AUDIO_STORAGE_DIR = "audio_storage"
+os.makedirs(AUDIO_STORAGE_DIR, exist_ok=True)
 
 # Initialize speech recognizer
 recognizer = sr.Recognizer()
 
-# Load the translation model
-src = "en"  # Chinese
-trg = "zh"  # English
-model_name = f"Helsinki-NLP/opus-mt-{src}-{trg}"
-model = MarianMTModel.from_pretrained(model_name)
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+# Global variables for language settings and model/tokenizer
+src_language = "en"  # Default source language
+trg_language = "zh"  # Default target language
+model = None
+tokenizer = None
+
+@app.route("/set_language", methods=["POST"])
+def set_language():
+    global src_language, trg_language, model, tokenizer
+    data = request.json
+    src_language = data.get("source")
+    trg_language = data.get("target")
+
+    # Load the translation model based on selected languages
+    model_name = f"Helsinki-NLP/opus-mt-{src_language}-{trg_language}"
+    model = MarianMTModel.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    return jsonify({"message": "Languages set successfully!"})
 
 # Store speech transcription
 speech_text = None
 
-def translate_to_english(text):
+def translate_to_target_language(text):
+    # Ensure model and tokenizer are loaded before translating
+    if model is None or tokenizer is None:
+        raise ValueError("Translation model and tokenizer are not loaded.")
+
     batch = tokenizer([text], return_tensors="pt")
     generated_ids = model.generate(**batch)
     return tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
@@ -36,10 +59,10 @@ def record_audio():
             audio = recognizer.listen(source)
 
         # Convert speech to text
-        speech_text = recognizer.recognize_google(audio, language="zh-CN")
-        print("You said (in Chinese):", speech_text)
+        speech_text = recognizer.recognize_google(audio, language=src_language)
+        print(f"You said ({src_language}):", speech_text)
 
-        return jsonify({"message": "Recording successful", "chinese": speech_text})
+        return jsonify({"message": "Recording successful", "speech_text": speech_text})
 
     except sr.UnknownValueError:
         return jsonify({"error": "Could not understand audio"}), 400
@@ -53,20 +76,31 @@ def translate():
     if not speech_text:
         return jsonify({"error": "No recorded speech found. Please record first."}), 400
 
-    translated = translate_to_english(speech_text)
-    print("Translated to English:", translated)
+    translated = translate_to_target_language(speech_text)
+    print("Translated to target language:", translated)
 
-    # Convert to speech using gTTS
-    tts = gTTS(text=translated, lang='en')
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
-        tts.save(temp_audio.name)
-        audio_path = temp_audio.name
+    # Convert the translated text to speech using gTTS
+    tts = gTTS(text=translated, lang=trg_language)
+    audio_filename = f"{hash(translated)}.mp3"  # Create a unique filename based on the translation
+    audio_path = os.path.join(AUDIO_STORAGE_DIR, audio_filename)
+
+    # Save the translated speech to the audio storage directory
+    tts.save(audio_path)
+
+    # Return the file path or URL to the audio file
+    audio_url = f"/static/{audio_filename}"  # Serve this file as static content
 
     return jsonify({
-        "original_chinese": speech_text,
+        "original_text": speech_text,
         "translated_text": translated,
-        "audio_file": audio_path
+        "audio_file": audio_url
     })
+
+# Route to serve the audio files
+@app.route('/static/<filename>')
+def serve_audio(filename):
+    # Return the file from the AUDIO_STORAGE_DIR directory
+    return send_from_directory(AUDIO_STORAGE_DIR, filename)
 
 if __name__ == "__main__":
     app.run(debug=True)
